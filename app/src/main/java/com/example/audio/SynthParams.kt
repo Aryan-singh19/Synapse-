@@ -53,7 +53,8 @@ enum class PatchDestination(val label: String) {
     OSC2_PITCH("Osc2 Pitch"),
     DELAY_TIME("Delay Time"),
     DRIVE_GAIN("Drive"),
-    CHORUS_MIX("Chorus Mix")
+    CHORUS_MIX("Chorus Mix"),
+    REVERB_MIX("Reverb Mix")
 }
 
 data class PatchCable(
@@ -114,6 +115,9 @@ data class SynthPatch(
     val chorusRate: Float = 1.0f, // 0.2Hz - 5.0Hz
     val chorusDepth: Float = 0.5f, // 0.0 - 1.0
     val chorusMix: Float = 0.0f,  // 0.0 - 0.8
+    val reverbSize: Float = 0.65f, // 0.1 to 0.95 Room / Hall size
+    val reverbDamp: Float = 0.35f, // 0.0 to 0.9 HF Damping
+    val reverbMix: Float = 0.0f,   // 0.0 to 0.8 Reverb Wet Mix
     val driveGain: Float = 1.8f, // 1.0 to 6.0
     val masterVolume: Float = 0.85f,
     val glideTime: Float = 0.04f, // Portamento

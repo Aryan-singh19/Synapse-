@@ -39,6 +39,7 @@ fun SequencerView(
     gateLength: Float = 0.8f,
     onTogglePlay: () -> Unit,
     onSetBpm: (Int) -> Unit,
+    onTapTempo: () -> Unit = {},
     onSetSwing: (Float) -> Unit,
     onSetScale: (MusicalScale) -> Unit,
     onSetDirection: (PlaybackDirection) -> Unit = {},
@@ -152,6 +153,25 @@ fun SequencerView(
                         modifier = Modifier.size(28.dp)
                     ) {
                         Text("+5", color = Color(0xFF94A3B8), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF1E293B))
+                            .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                            .clickable { onTapTempo() }
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "TAP",
+                            color = Color(0xFF00E5FF),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
                     }
                 }
 

@@ -562,6 +562,56 @@ fun RackSynthView(
                         indicatorColor = Color(0xFFFF4081)
                     )
                 }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Studio FX: Algorithmic Space Reverb & Master
+                Text(
+                    text = "AMBIENT SPACE REVERB & MASTER OUTPUT",
+                    color = Color(0xFFE040FB),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    RotaryKnob(
+                        value = patch.reverbSize,
+                        onValueChange = { onPatchChange(patch.copy(reverbSize = it)) },
+                        valueRange = 0.1f..0.95f,
+                        label = "ROOM SIZE",
+                        displayValue = "${(patch.reverbSize * 100).toInt()}%",
+                        indicatorColor = Color(0xFFE040FB)
+                    )
+                    RotaryKnob(
+                        value = patch.reverbDamp,
+                        onValueChange = { onPatchChange(patch.copy(reverbDamp = it)) },
+                        valueRange = 0.05f..0.85f,
+                        label = "HF DAMP",
+                        displayValue = "${(patch.reverbDamp * 100).toInt()}%",
+                        indicatorColor = Color(0xFFE040FB)
+                    )
+                    RotaryKnob(
+                        value = patch.reverbMix,
+                        onValueChange = { onPatchChange(patch.copy(reverbMix = it)) },
+                        valueRange = 0.0f..0.8f,
+                        label = "REVERB WET",
+                        displayValue = "${(patch.reverbMix * 100).toInt()}%",
+                        indicatorColor = Color(0xFFE040FB)
+                    )
+                    RotaryKnob(
+                        value = patch.masterVolume,
+                        onValueChange = { onPatchChange(patch.copy(masterVolume = it)) },
+                        valueRange = 0.1f..1.0f,
+                        label = "MASTER VOL",
+                        displayValue = "${(patch.masterVolume * 100).toInt()}%",
+                        indicatorColor = Color(0xFF00E676)
+                    )
+                }
             }
         }
     }

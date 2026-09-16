@@ -43,6 +43,9 @@ fun PerformanceView(
     masterTuning: Float = 440f,
     onMasterTuningChange: (Float) -> Unit = {},
     arpeggiator: com.example.sequencer.Arpeggiator? = null,
+    isSustainPedal: Boolean = false,
+    onToggleSustain: () -> Unit = {},
+    selectedScale: com.example.audio.MusicalScale? = null,
     modifier: Modifier = Modifier
 ) {
     var xyTouchPos by remember { mutableStateOf<Offset?>(null) }
@@ -243,6 +246,26 @@ fun PerformanceView(
                 ) {
                     Text("OCT +", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = Color.White)
                 }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                // Sustain Pedal Latch
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isSustainPedal) Color(0xFF00E676) else Color(0xFF1E293B))
+                        .clickable { onToggleSustain() }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isSustainPedal) "SUSTAIN ON" else "SUSTAIN",
+                        color = if (isSustainPedal) Color.Black else Color(0xFF94A3B8),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
             }
 
             // Concert Tuning Selector
@@ -425,6 +448,7 @@ fun PerformanceView(
                 numKeys = 14,
                 onNoteOn = onNoteOn,
                 onNoteOff = onNoteOff,
+                selectedScale = selectedScale,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
@@ -553,6 +577,7 @@ private fun PianoKeyboard(
     numKeys: Int,
     onNoteOn: (Int, Float) -> Unit,
     onNoteOff: (Int) -> Unit,
+    selectedScale: com.example.audio.MusicalScale? = null,
     modifier: Modifier = Modifier
 ) {
     val whiteKeyOffsets = listOf(0, 2, 4, 5, 7, 9, 11)
@@ -585,6 +610,7 @@ private fun PianoKeyboard(
                 val midiNote = startMidiNote + octaveOffset + noteInOctave
                 val isPressed = activeNotes.contains(midiNote)
                 val label = StepSequencer.getNoteLabel(midiNote)
+                val inScale = selectedScale?.intervals?.contains(midiNote % 12) ?: false
 
                 Box(
                     modifier = Modifier
@@ -609,14 +635,27 @@ private fun PianoKeyboard(
                         .testTag("key_$label"),
                     contentAlignment = Alignment.BottomCenter
                 ) {
-                    Text(
-                        text = label,
-                        color = if (isPressed) Color.Black else Color(0xFF475569),
-                        fontSize = 8.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(bottom = 3.dp)
+                    ) {
+                        if (inScale && !isPressed) {
+                            Box(
+                                modifier = Modifier
+                                    .size(4.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF0091EA))
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                        }
+                        Text(
+                            text = label,
+                            color = if (isPressed) Color.Black else Color(0xFF475569),
+                            fontSize = 8.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -631,6 +670,7 @@ private fun PianoKeyboard(
                     val isPressed = activeNotes.contains(midiNote)
                     val label = StepSequencer.getNoteLabel(midiNote)
                     val xOffset = (whiteKeyWidth * (globalWhiteIdx + 1)) - (blackKeyWidth / 2f)
+                    val inScale = selectedScale?.intervals?.contains(midiNote % 12) ?: false
 
                     Box(
                         modifier = Modifier
@@ -657,14 +697,27 @@ private fun PianoKeyboard(
                             .testTag("key_$label"),
                         contentAlignment = Alignment.BottomCenter
                     ) {
-                        Text(
-                            text = label,
-                            color = if (isPressed) Color.Black else Color(0xFF94A3B8),
-                            fontSize = 7.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(bottom = 2.dp)
-                        )
+                        ) {
+                            if (inScale && !isPressed) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(3.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFFF9100))
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                            }
+                            Text(
+                                text = label,
+                                color = if (isPressed) Color.Black else Color(0xFF94A3B8),
+                                fontSize = 7.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }

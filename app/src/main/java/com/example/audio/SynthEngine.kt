@@ -61,6 +61,64 @@ class SynthEngine {
     private var chorusWriteIndex = 0
     private var chorusLfoPhase = 0.0
 
+    // Algorithmic Stereo Reverb (Freeverb style comb + allpass matrix)
+    private class CombFilter(val size: Int) {
+        val buffer = FloatArray(size)
+        var bufferIndex = 0
+        var filterStore = 0.0f
+
+        fun process(input: Float, damp: Float, feedback: Float): Float {
+            val output = buffer[bufferIndex]
+            filterStore = output * (1.0f - damp) + filterStore * damp
+            buffer[bufferIndex] = input + filterStore * feedback
+            bufferIndex = (bufferIndex + 1) % size
+            return output
+        }
+
+        fun clear() {
+            buffer.fill(0f)
+            filterStore = 0f
+        }
+    }
+
+    private class AllPassFilter(val size: Int) {
+        val buffer = FloatArray(size)
+        var bufferIndex = 0
+
+        fun process(input: Float): Float {
+            val bufOut = buffer[bufferIndex]
+            val output = -input + bufOut
+            buffer[bufferIndex] = input + (bufOut * 0.5f)
+            bufferIndex = (bufferIndex + 1) % size
+            return output
+        }
+
+        fun clear() {
+            buffer.fill(0f)
+        }
+    }
+
+    private val combsL = arrayOf(CombFilter(1116), CombFilter(1188), CombFilter(1277), CombFilter(1356))
+    private val combsR = arrayOf(CombFilter(1139), CombFilter(1211), CombFilter(1300), CombFilter(1379))
+    private val allpassesL = arrayOf(AllPassFilter(225), AllPassFilter(341))
+    private val allpassesR = arrayOf(AllPassFilter(248), AllPassFilter(364))
+
+    private fun processReverb(inL: Float, inR: Float, roomSize: Float, damp: Float): Pair<Float, Float> {
+        val feedback = (roomSize * 0.28f + 0.7f).coerceIn(0.6f, 0.96f)
+        val effDamp = damp.coerceIn(0.05f, 0.85f)
+        val monoInput = (inL + inR) * 0.015f
+
+        var outL = 0f
+        var outR = 0f
+        for (c in combsL) outL += c.process(monoInput, effDamp, feedback)
+        for (c in combsR) outR += c.process(monoInput, effDamp, feedback)
+
+        for (ap in allpassesL) outL = ap.process(outL)
+        for (ap in allpassesR) outR = ap.process(outR)
+
+        return Pair(outL * 1.5f, outR * 1.5f)
+    }
+
     // Visualizer buffer (thread-safe copy for UI)
     private val scopeBufferInternal = FloatArray(WAVEFORM_BUFFER_SIZE)
     private val scopeBufferExport = FloatArray(WAVEFORM_BUFFER_SIZE)
@@ -211,6 +269,26 @@ class SynthEngine {
         for (voice in voices) {
             voice.kill()
         }
+        for (c in combsL) c.clear()
+        for (c in combsR) c.clear()
+        for (ap in allpassesL) ap.clear()
+        for (ap in allpassesR) ap.clear()
+    }
+
+    fun getActiveVoiceCount(): Int {
+        var count = 0
+        for (i in 0 until MAX_VOICES) {
+            if (voices[i].isActive) count++
+        }
+        return count
+    }
+
+    fun getVoiceActiveMask(): BooleanArray {
+        val mask = BooleanArray(MAX_VOICES)
+        for (i in 0 until MAX_VOICES) {
+            mask[i] = voices[i].isActive
+        }
+        return mask
     }
 
     /**
@@ -230,6 +308,7 @@ class SynthEngine {
         var delayMod = 0f
         var driveMod = 0f
         var chorusMod = 0f
+        var reverbMod = 0f
 
         var avgAmp = 0f
         var avgFilt = 0f
@@ -264,10 +343,12 @@ class SynthEngine {
                 PatchDestination.DELAY_TIME -> delayMod += routedVal * 0.3f
                 PatchDestination.DRIVE_GAIN -> driveMod += routedVal * 2.5f
                 PatchDestination.CHORUS_MIX -> chorusMod += routedVal * 0.5f
+                PatchDestination.REVERB_MIX -> reverbMod += routedVal * 0.5f
             }
         }
 
         val effChorusMix = (p.chorusMix + chorusMod).coerceIn(0f, 1f)
+        val effReverbMix = (p.reverbMix + reverbMod).coerceIn(0f, 0.85f)
 
         for (i in 0 until BUFFER_CHUNK_SIZE) {
             // Update Main LFO
@@ -352,9 +433,19 @@ class SynthEngine {
             delayBufferR[delayWriteIndex] = feedbackR
             delayWriteIndex = (delayWriteIndex + 1) % delayBufferSize
 
-            // Final Wet/Dry mix with master tape saturation
-            var finalL = (chorusedL * (1f - p.delayMix) + delayedL * p.delayMix) * p.masterVolume
-            var finalR = (chorusedR * (1f - p.delayMix) + delayedR * p.delayMix) * p.masterVolume
+            // Final Wet/Dry mix with Delay
+            var finalL = chorusedL * (1f - p.delayMix) + delayedL * p.delayMix
+            var finalR = chorusedR * (1f - p.delayMix) + delayedR * p.delayMix
+
+            // Algorithmic Space Reverb
+            if (effReverbMix > 0.005f) {
+                val (revL, revR) = processReverb(finalL, finalR, p.reverbSize, p.reverbDamp)
+                finalL = finalL * (1f - effReverbMix * 0.5f) + revL * effReverbMix
+                finalR = finalR * (1f - effReverbMix * 0.5f) + revR * effReverbMix
+            }
+
+            finalL *= p.masterVolume
+            finalR *= p.masterVolume
 
             // Analog master tape limiter (prevents harsh digital clipping)
             finalL = (finalL / sqrt(1.0f + finalL * finalL)).coerceIn(-1.0f, 1.0f)

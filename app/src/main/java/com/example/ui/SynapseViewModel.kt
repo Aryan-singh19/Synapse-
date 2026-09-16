@@ -70,6 +70,17 @@ class SynapseViewModel : ViewModel() {
     private val _masterTuning = MutableStateFlow(440f)
     val masterTuning: StateFlow<Float> = _masterTuning.asStateFlow()
 
+    // Real-time voice allocation monitoring (4 voices)
+    private val _activeVoices = MutableStateFlow(BooleanArray(SynthEngine.MAX_VOICES))
+    val activeVoices: StateFlow<BooleanArray> = _activeVoices.asStateFlow()
+
+    // Performance Sustain Latch
+    private val _isSustainPedal = MutableStateFlow(false)
+    val isSustainPedal: StateFlow<Boolean> = _isSustainPedal.asStateFlow()
+    private val sustainedNotes = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
+
+    private val tapTimestamps = mutableListOf<Long>()
+
     private var visualizerJob: Job? = null
     private var recordingTimerJob: Job? = null
 
@@ -182,9 +193,41 @@ class SynapseViewModel : ViewModel() {
                     tempSpectrum[b] = kotlin.math.max(mag * 4.2f, tempSpectrum[b] * 0.82f).coerceIn(0f, 1f)
                 }
                 _spectrumSnapshot.value = tempSpectrum.copyOf()
+                _activeVoices.value = synthEngine.getVoiceActiveMask()
 
                 delay(25L) // ~40 fps refresh
             }
+        }
+    }
+
+    fun tapTempo() {
+        val now = System.currentTimeMillis()
+        tapTimestamps.add(now)
+        while (tapTimestamps.size > 4 || (tapTimestamps.size > 1 && now - tapTimestamps.first() > 2500)) {
+            tapTimestamps.removeAt(0)
+        }
+        if (tapTimestamps.size >= 2) {
+            val intervals = mutableListOf<Long>()
+            for (i in 1 until tapTimestamps.size) {
+                intervals.add(tapTimestamps[i] - tapTimestamps[i - 1])
+            }
+            val avgInterval = intervals.average()
+            if (avgInterval > 150) {
+                val calculatedBpm = (60000.0 / avgInterval).toInt().coerceIn(40, 260)
+                sequencer.setBpm(calculatedBpm)
+                arpeggiator.setBpm(calculatedBpm)
+            }
+        }
+    }
+
+    fun toggleSustainPedal() {
+        val newSustain = !_isSustainPedal.value
+        _isSustainPedal.value = newSustain
+        if (!newSustain) {
+            for (note in sustainedNotes) {
+                synthEngine.noteOff(note)
+            }
+            sustainedNotes.clear()
         }
     }
 
@@ -220,6 +263,9 @@ class SynapseViewModel : ViewModel() {
             arpeggiator.onKeyPressed(midiNote)
         } else {
             synthEngine.noteOn(midiNote, velocity)
+            if (_isSustainPedal.value) {
+                sustainedNotes.add(midiNote)
+            }
         }
     }
 
@@ -227,11 +273,17 @@ class SynapseViewModel : ViewModel() {
         if (arpeggiator.isEnabled.value) {
             arpeggiator.onKeyReleased(midiNote)
         } else {
-            synthEngine.noteOff(midiNote)
+            if (_isSustainPedal.value) {
+                sustainedNotes.add(midiNote)
+            } else {
+                synthEngine.noteOff(midiNote)
+            }
         }
     }
 
     fun panic() {
+        sustainedNotes.clear()
+        _isSustainPedal.value = false
         arpeggiator.clearLatch()
         sequencer.stop()
         synthEngine.allNotesOff()

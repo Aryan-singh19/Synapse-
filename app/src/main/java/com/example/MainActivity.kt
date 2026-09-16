@@ -80,6 +80,8 @@ fun SynapseApp(viewModel: SynapseViewModel) {
     val selectedScale by viewModel.sequencer.selectedScale.collectAsStateWithLifecycle()
     val direction by viewModel.sequencer.direction.collectAsStateWithLifecycle()
     val gateLength by viewModel.sequencer.gateLength.collectAsStateWithLifecycle()
+    val activeVoices by viewModel.activeVoices.collectAsStateWithLifecycle()
+    val isSustainPedal by viewModel.isSustainPedal.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     var showPresetDialog by remember { mutableStateOf(false) }
@@ -229,7 +231,7 @@ fun SynapseApp(viewModel: SynapseViewModel) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 OscilloscopeView(
                     waveform = waveform,
@@ -237,6 +239,60 @@ fun SynapseApp(viewModel: SynapseViewModel) {
                     spectrum = spectrum,
                     traceColor = Color(0xFF00E5FF)
                 )
+            }
+
+            // Real-time Voice Allocation & Telemetry strip
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        "VOICE ENGINE:",
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFF64748B),
+                        fontWeight = FontWeight.Bold
+                    )
+                    for (v in 0 until 4) {
+                        val isActive = if (v < activeVoices.size) activeVoices[v] else false
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isActive) Color(0xFF00E5FF) else Color(0xFF1E293B))
+                            )
+                            Text(
+                                "V${v + 1}",
+                                fontSize = 8.sp,
+                                fontFamily = FontFamily.Monospace,
+                                color = if (isActive) Color(0xFF00E5FF) else Color(0xFF475569)
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        "${bpm} BPM // 44.1kHz STEREO",
+                        fontSize = 8.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFF64748B)
+                    )
+                }
             }
 
             // STUDIO RACK NAVIGATION TABS
@@ -327,6 +383,7 @@ fun SynapseApp(viewModel: SynapseViewModel) {
                             gateLength = gateLength,
                             onTogglePlay = { viewModel.sequencer.togglePlayback() },
                             onSetBpm = { viewModel.sequencer.setBpm(it) },
+                            onTapTempo = { viewModel.tapTempo() },
                             onSetSwing = { viewModel.sequencer.setSwing(it) },
                             onSetScale = { viewModel.sequencer.setScale(it) },
                             onSetDirection = { viewModel.sequencer.setDirection(it) },
@@ -367,7 +424,10 @@ fun SynapseApp(viewModel: SynapseViewModel) {
                             onModWheelChange = { viewModel.setModWheel(it) },
                             masterTuning = masterTuning,
                             onMasterTuningChange = { viewModel.setMasterTuning(it) },
-                            arpeggiator = viewModel.arpeggiator
+                            arpeggiator = viewModel.arpeggiator,
+                            isSustainPedal = isSustainPedal,
+                            onToggleSustain = { viewModel.toggleSustainPedal() },
+                            selectedScale = selectedScale
                         )
                     }
                 }

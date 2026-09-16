@@ -106,6 +106,9 @@ object PresetBank {
             delayTime = 0.48f,
             delayFeedback = 0.65f,
             delayMix = 0.45f,
+            reverbSize = 0.85f,
+            reverbDamp = 0.28f,
+            reverbMix = 0.45f,
             driveGain = 1.4f,
             glideTime = 0.12f,
             cables = listOf(
@@ -176,6 +179,9 @@ object PresetBank {
             delayTime = 0.65f,
             delayFeedback = 0.72f,
             delayMix = 0.52f,
+            reverbSize = 0.92f,
+            reverbDamp = 0.35f,
+            reverbMix = 0.55f,
             driveGain = 2.4f,
             glideTime = 0.15f,
             cables = listOf(
@@ -213,6 +219,9 @@ object PresetBank {
             delayTime = 0.28f,
             delayFeedback = 0.4f,
             delayMix = 0.32f,
+            reverbSize = 0.72f,
+            reverbDamp = 0.4f,
+            reverbMix = 0.35f,
             driveGain = 1.6f,
             glideTime = 0.02f,
             cables = emptyList()
@@ -320,6 +329,9 @@ object PresetBank {
             chorusRate = 1.4f,
             chorusDepth = 0.6f,
             chorusMix = 0.55f,
+            reverbSize = 0.78f,
+            reverbDamp = 0.3f,
+            reverbMix = 0.38f,
             driveGain = 2.4f,
             glideTime = 0.03f,
             cables = listOf(
@@ -359,6 +371,9 @@ object PresetBank {
             chorusRate = 0.8f,
             chorusDepth = 0.75f,
             chorusMix = 0.68f,
+            reverbSize = 0.94f,
+            reverbDamp = 0.22f,
+            reverbMix = 0.58f,
             driveGain = 1.5f,
             glideTime = 0.15f,
             cables = listOf(
