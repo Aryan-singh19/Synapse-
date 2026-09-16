@@ -48,10 +48,18 @@ class SynthEngine {
     private var randomHoldVal = 0.0f
     private var randomHoldCounter = 0
 
-    // Delay line buffer (stereo/mono delay line)
+    // Stereo Delay line buffers (ping-pong spatial delay)
     private val delayBufferSize = SAMPLE_RATE * 2 // 2 seconds max delay
-    private val delayBuffer = FloatArray(delayBufferSize)
+    private val delayBufferL = FloatArray(delayBufferSize)
+    private val delayBufferR = FloatArray(delayBufferSize)
     private var delayWriteIndex = 0
+
+    // Stereo Chorus / Dimension ensemble buffers
+    private val chorusBufferSize = 2048 // ~46ms max chorus delay
+    private val chorusBufferL = FloatArray(chorusBufferSize)
+    private val chorusBufferR = FloatArray(chorusBufferSize)
+    private var chorusWriteIndex = 0
+    private var chorusLfoPhase = 0.0
 
     // Visualizer buffer (thread-safe copy for UI)
     private val scopeBufferInternal = FloatArray(WAVEFORM_BUFFER_SIZE)
@@ -81,10 +89,10 @@ class SynthEngine {
 
         val minBufferSize = AudioTrack.getMinBufferSize(
             SAMPLE_RATE,
-            AudioFormat.CHANNEL_OUT_MONO,
+            AudioFormat.CHANNEL_OUT_STEREO,
             AudioFormat.ENCODING_PCM_16BIT
         )
-        val bufferSize = max(minBufferSize * 2, BUFFER_CHUNK_SIZE * 4)
+        val bufferSize = max(minBufferSize * 2, BUFFER_CHUNK_SIZE * 4 * 2)
 
         try {
             audioTrack = AudioTrack.Builder()
@@ -98,7 +106,7 @@ class SynthEngine {
                     AudioFormat.Builder()
                         .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                         .setSampleRate(SAMPLE_RATE)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
                         .build()
                 )
                 .setBufferSizeInBytes(bufferSize)
@@ -110,28 +118,34 @@ class SynthEngine {
 
             audioThread = Thread({
                 Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
-                val shortBuffer = ShortArray(BUFFER_CHUNK_SIZE)
-                val floatBuffer = FloatArray(BUFFER_CHUNK_SIZE)
+                val stereoShortBuffer = ShortArray(BUFFER_CHUNK_SIZE * 2)
+                val floatBufferL = FloatArray(BUFFER_CHUNK_SIZE)
+                val floatBufferR = FloatArray(BUFFER_CHUNK_SIZE)
 
                 while (isRunning.get()) {
-                    generateBlock(floatBuffer)
+                    generateStereoBlock(floatBufferL, floatBufferR)
 
                     var sumSquares = 0f
                     for (i in 0 until BUFFER_CHUNK_SIZE) {
-                        val sample = floatBuffer[i]
-                        sumSquares += sample * sample
-                        val clamped = sample.coerceIn(-1.0f, 1.0f)
-                        shortBuffer[i] = (clamped * 32767.0f).toInt().toShort()
+                        val sampleL = floatBufferL[i]
+                        val sampleR = floatBufferR[i]
+                        sumSquares += (sampleL * sampleL + sampleR * sampleR) * 0.5f
+
+                        val clampL = sampleL.coerceIn(-1.0f, 1.0f)
+                        val clampR = sampleR.coerceIn(-1.0f, 1.0f)
+
+                        stereoShortBuffer[i * 2] = (clampL * 32767.0f).toInt().toShort()
+                        stereoShortBuffer[i * 2 + 1] = (clampR * 32767.0f).toInt().toShort()
                     }
                     currentPeakRms = sqrt(sumSquares / BUFFER_CHUNK_SIZE)
 
-                    // Write to live WAV recorder if active
+                    // Write to live WAV recorder if active (Stereo 16-bit 44.1kHz)
                     if (recorder.isRecording) {
-                        recorder.writeSamples(shortBuffer, BUFFER_CHUNK_SIZE)
+                        recorder.writeSamples(stereoShortBuffer, BUFFER_CHUNK_SIZE * 2)
                     }
 
-                    // Write to AudioTrack
-                    audioTrack?.write(shortBuffer, 0, BUFFER_CHUNK_SIZE)
+                    // Write interleaved stereo to AudioTrack
+                    audioTrack?.write(stereoShortBuffer, 0, BUFFER_CHUNK_SIZE * 2)
                 }
             }, "SynapseAudioEngineThread")
 
@@ -200,12 +214,13 @@ class SynthEngine {
     }
 
     /**
-     * Main DSP block generation function (512 samples at a time)
+     * Main DSP stereo block generation function (512 samples per channel)
      */
-    private fun generateBlock(output: FloatArray) {
+    private fun generateStereoBlock(outputL: FloatArray, outputR: FloatArray) {
         val p = patch
         val lfoInc = (2.0 * PI * p.lfoRate) / SAMPLE_RATE
         val delaySamples = (p.delayTime * SAMPLE_RATE).toInt().coerceIn(1, delayBufferSize - 1)
+        val chorusLfoInc = (2.0 * PI * p.chorusRate) / SAMPLE_RATE
 
         // Calculate modulation from patch bay
         var pitchModOsc1 = 0f
@@ -214,6 +229,7 @@ class SynthEngine {
         var resMod = 0f
         var delayMod = 0f
         var driveMod = 0f
+        var chorusMod = 0f
 
         var avgAmp = 0f
         var avgFilt = 0f
@@ -247,11 +263,14 @@ class SynthEngine {
                 PatchDestination.OSC2_PITCH -> pitchModOsc2 += routedVal * 12f
                 PatchDestination.DELAY_TIME -> delayMod += routedVal * 0.3f
                 PatchDestination.DRIVE_GAIN -> driveMod += routedVal * 2.5f
+                PatchDestination.CHORUS_MIX -> chorusMod += routedVal * 0.5f
             }
         }
 
+        val effChorusMix = (p.chorusMix + chorusMod).coerceIn(0f, 1f)
+
         for (i in 0 until BUFFER_CHUNK_SIZE) {
-            // Update LFO
+            // Update Main LFO
             lfoPhase += lfoInc
             if (lfoPhase >= 2.0 * PI) lfoPhase -= 2.0 * PI
 
@@ -278,28 +297,75 @@ class SynthEngine {
                 }
             }
 
-            // Soft master overdrive / drive saturation
+            // Master drive saturation (analog hyperbolic tangent curve)
             val effectiveDrive = (p.driveGain + driveMod).coerceIn(1.0f, 8.0f)
             var driven = mix * effectiveDrive
-            // Tanh-like soft clipping curve
             driven = driven / (1.0f + abs(driven))
 
-            // Delay effect
-            val currentDelaySamples = (delaySamples + (delayMod * SAMPLE_RATE).toInt()).coerceIn(100, delayBufferSize - 1)
-            var readIdx = delayWriteIndex - currentDelaySamples
-            if (readIdx < 0) readIdx += delayBufferSize
+            // Stereo Chorus / Ensemble effect
+            chorusLfoPhase += chorusLfoInc
+            if (chorusLfoPhase >= 2.0 * PI) chorusLfoPhase -= 2.0 * PI
 
-            val delayedSample = delayBuffer[readIdx]
-            val delayFeedbackSample = (driven + delayedSample * p.delayFeedback).coerceIn(-1.5f, 1.5f)
-            delayBuffer[delayWriteIndex] = delayFeedbackSample
+            // Quadrature LFO for wide 90-degree stereo field
+            val modOffsetL = (sin(chorusLfoPhase) * 350.0 * p.chorusDepth).toFloat()
+            val modOffsetR = (cos(chorusLfoPhase) * 350.0 * p.chorusDepth).toFloat()
+
+            // Write to circular chorus buffers
+            chorusBufferL[chorusWriteIndex] = driven
+            chorusBufferR[chorusWriteIndex] = driven
+
+            val baseChorusDelay = 600 // ~13.6ms center delay
+            val readChorusIdxL = (chorusWriteIndex - baseChorusDelay - modOffsetL.toInt()).let {
+                val rem = it % chorusBufferSize
+                if (rem < 0) rem + chorusBufferSize else rem
+            }
+            val readChorusIdxR = (chorusWriteIndex - baseChorusDelay - modOffsetR.toInt()).let {
+                val rem = it % chorusBufferSize
+                if (rem < 0) rem + chorusBufferSize else rem
+            }
+
+            val chorusSampleL = chorusBufferL[readChorusIdxL]
+            val chorusSampleR = chorusBufferR[readChorusIdxR]
+            chorusWriteIndex = (chorusWriteIndex + 1) % chorusBufferSize
+
+            val chorusedL = driven * (1f - effChorusMix * 0.45f) + chorusSampleL * effChorusMix
+            val chorusedR = driven * (1f - effChorusMix * 0.45f) + chorusSampleR * effChorusMix
+
+            // Stereo Ping-Pong Delay
+            val currentDelaySamples = (delaySamples + (delayMod * SAMPLE_RATE).toInt()).coerceIn(100, delayBufferSize - 1)
+            var readIdxL = delayWriteIndex - currentDelaySamples
+            if (readIdxL < 0) readIdxL += delayBufferSize
+
+            // Right channel has slight 75% poly-meter delay offset for stereo width
+            val rightDelaySamples = (currentDelaySamples * 0.75f).toInt().coerceIn(80, delayBufferSize - 1)
+            var readIdxR = delayWriteIndex - rightDelaySamples
+            if (readIdxR < 0) readIdxR += delayBufferSize
+
+            val delayedL = delayBufferL[readIdxL]
+            val delayedR = delayBufferR[readIdxR]
+
+            // Cross-channel feedback ping-pong
+            val feedbackL = (chorusedL + delayedR * p.delayFeedback).coerceIn(-1.5f, 1.5f)
+            val feedbackR = (chorusedR + delayedL * p.delayFeedback).coerceIn(-1.5f, 1.5f)
+
+            delayBufferL[delayWriteIndex] = feedbackL
+            delayBufferR[delayWriteIndex] = feedbackR
             delayWriteIndex = (delayWriteIndex + 1) % delayBufferSize
 
-            // Wet/Dry mix
-            val finalSample = (driven * (1f - p.delayMix) + delayedSample * p.delayMix) * p.masterVolume
-            output[i] = finalSample
+            // Final Wet/Dry mix with master tape saturation
+            var finalL = (chorusedL * (1f - p.delayMix) + delayedL * p.delayMix) * p.masterVolume
+            var finalR = (chorusedR * (1f - p.delayMix) + delayedR * p.delayMix) * p.masterVolume
 
-            // Write to oscilloscope buffer
-            scopeBufferInternal[scopeWriteIndex] = finalSample
+            // Analog master tape limiter (prevents harsh digital clipping)
+            finalL = (finalL / sqrt(1.0f + finalL * finalL)).coerceIn(-1.0f, 1.0f)
+            finalR = (finalR / sqrt(1.0f + finalR * finalR)).coerceIn(-1.0f, 1.0f)
+
+            outputL[i] = finalL
+            outputR[i] = finalR
+
+            // Write mono sum to oscilloscope / FFT buffer
+            val monoSum = (finalL + finalR) * 0.5f
+            scopeBufferInternal[scopeWriteIndex] = monoSum
             scopeWriteIndex++
             if (scopeWriteIndex >= WAVEFORM_BUFFER_SIZE) {
                 scopeWriteIndex = 0

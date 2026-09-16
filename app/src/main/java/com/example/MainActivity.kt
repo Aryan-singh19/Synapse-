@@ -57,6 +57,7 @@ fun SynapseApp(viewModel: SynapseViewModel) {
     val activeTab by viewModel.activeTab.collectAsStateWithLifecycle()
     val baseOctave by viewModel.baseOctave.collectAsStateWithLifecycle()
     val waveform by viewModel.waveformSnapshot.collectAsStateWithLifecycle()
+    val spectrum by viewModel.spectrumSnapshot.collectAsStateWithLifecycle()
     val peakRms by viewModel.peakRms.collectAsStateWithLifecycle()
     val customPresets by viewModel.customPresets.collectAsStateWithLifecycle()
 
@@ -233,6 +234,7 @@ fun SynapseApp(viewModel: SynapseViewModel) {
                 OscilloscopeView(
                     waveform = waveform,
                     peakRms = peakRms,
+                    spectrum = spectrum,
                     traceColor = Color(0xFF00E5FF)
                 )
             }
@@ -364,7 +366,8 @@ fun SynapseApp(viewModel: SynapseViewModel) {
                             modWheel = modWheel,
                             onModWheelChange = { viewModel.setModWheel(it) },
                             masterTuning = masterTuning,
-                            onMasterTuningChange = { viewModel.setMasterTuning(it) }
+                            onMasterTuningChange = { viewModel.setMasterTuning(it) },
+                            arpeggiator = viewModel.arpeggiator
                         )
                     }
                 }

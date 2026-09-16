@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.audio.*
 import com.example.presets.PresetBank
+import com.example.sequencer.Arpeggiator
 import com.example.sequencer.StepSequencer
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +21,10 @@ enum class StudioTab(val label: String, val iconBadge: String) {
 class SynapseViewModel : ViewModel() {
     val synthEngine = SynthEngine()
     val sequencer = StepSequencer(synthEngine)
+    val arpeggiator = Arpeggiator(
+        onNoteOn = { note, vel -> synthEngine.noteOn(note, vel) },
+        onNoteOff = { note -> synthEngine.noteOff(note) }
+    )
 
     private val _currentPatch = MutableStateFlow(PresetBank.factoryPresets[0])
     val currentPatch: StateFlow<SynthPatch> = _currentPatch.asStateFlow()
@@ -32,6 +37,9 @@ class SynapseViewModel : ViewModel() {
 
     private val _waveformSnapshot = MutableStateFlow(FloatArray(SynthEngine.WAVEFORM_BUFFER_SIZE))
     val waveformSnapshot: StateFlow<FloatArray> = _waveformSnapshot.asStateFlow()
+
+    private val _spectrumSnapshot = MutableStateFlow(FloatArray(32))
+    val spectrumSnapshot: StateFlow<FloatArray> = _spectrumSnapshot.asStateFlow()
 
     private val _peakRms = MutableStateFlow(0f)
     val peakRms: StateFlow<Float> = _peakRms.asStateFlow()
@@ -69,6 +77,11 @@ class SynapseViewModel : ViewModel() {
         synthEngine.patch = _currentPatch.value
         synthEngine.start()
         startVisualizerLoop()
+        viewModelScope.launch {
+            sequencer.bpm.collect { bpm ->
+                arpeggiator.setBpm(bpm)
+            }
+        }
     }
 
     fun startRecording(context: android.content.Context) {
@@ -145,11 +158,32 @@ class SynapseViewModel : ViewModel() {
     private fun startVisualizerLoop() {
         visualizerJob = viewModelScope.launch(Dispatchers.Default) {
             val localBuffer = FloatArray(SynthEngine.WAVEFORM_BUFFER_SIZE)
+            val tempSpectrum = FloatArray(32)
             while (isActive) {
                 synthEngine.getWaveformSnapshot(localBuffer)
                 _waveformSnapshot.value = localBuffer.copyOf()
                 _peakRms.value = synthEngine.currentPeakRms
-                delay(25L) // ~40-50 fps refresh
+
+                // Real-time 32-band spectral magnitude estimation
+                val step = 4
+                val samplesCount = localBuffer.size / step
+                for (b in 0 until 32) {
+                    val k = (b * 3 + 1)
+                    var real = 0f
+                    var imag = 0f
+                    for (i in 0 until localBuffer.size step step) {
+                        val angle = 2.0 * Math.PI * k * i / localBuffer.size
+                        val s = localBuffer[i]
+                        real += s * kotlin.math.cos(angle).toFloat()
+                        imag -= s * kotlin.math.sin(angle).toFloat()
+                    }
+                    val mag = (kotlin.math.sqrt(real * real + imag * imag) / samplesCount) * (1.2f + b * 0.04f)
+                    // Smooth decay response (analog meter ballistics)
+                    tempSpectrum[b] = kotlin.math.max(mag * 4.2f, tempSpectrum[b] * 0.82f).coerceIn(0f, 1f)
+                }
+                _spectrumSnapshot.value = tempSpectrum.copyOf()
+
+                delay(25L) // ~40 fps refresh
             }
         }
     }
@@ -182,14 +216,23 @@ class SynapseViewModel : ViewModel() {
     }
 
     fun noteOn(midiNote: Int, velocity: Float = 0.85f) {
-        synthEngine.noteOn(midiNote, velocity)
+        if (arpeggiator.isEnabled.value) {
+            arpeggiator.onKeyPressed(midiNote)
+        } else {
+            synthEngine.noteOn(midiNote, velocity)
+        }
     }
 
     fun noteOff(midiNote: Int) {
-        synthEngine.noteOff(midiNote)
+        if (arpeggiator.isEnabled.value) {
+            arpeggiator.onKeyReleased(midiNote)
+        } else {
+            synthEngine.noteOff(midiNote)
+        }
     }
 
     fun panic() {
+        arpeggiator.clearLatch()
         sequencer.stop()
         synthEngine.allNotesOff()
     }
@@ -236,6 +279,7 @@ class SynapseViewModel : ViewModel() {
         super.onCleared()
         visualizerJob?.cancel()
         recordingTimerJob?.cancel()
+        arpeggiator.stop()
         sequencer.stop()
         synthEngine.stop()
     }

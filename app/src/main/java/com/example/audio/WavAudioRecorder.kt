@@ -21,7 +21,7 @@ class WavAudioRecorder {
         private set
 
     val recordedDurationSeconds: Float
-        get() = (totalBytesWritten / 2) / 44100.0f
+        get() = (totalBytesWritten / 4) / 44100.0f
 
     @Synchronized
     fun start(file: File): Boolean {
@@ -100,7 +100,7 @@ class WavAudioRecorder {
     private fun updateWavHeader(file: File, pcmDataLength: Long) {
         val totalDataLen = pcmDataLength + 36
         val sampleRate = 44100L
-        val channels = 1
+        val channels = 2
         val byteRate = sampleRate * channels * 2
 
         val header = ByteArray(44)

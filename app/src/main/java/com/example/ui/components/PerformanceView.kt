@@ -42,6 +42,7 @@ fun PerformanceView(
     onModWheelChange: (Float) -> Unit = {},
     masterTuning: Float = 440f,
     onMasterTuningChange: (Float) -> Unit = {},
+    arpeggiator: com.example.sequencer.Arpeggiator? = null,
     modifier: Modifier = Modifier
 ) {
     var xyTouchPos by remember { mutableStateOf<Offset?>(null) }
@@ -268,7 +269,136 @@ fun PerformanceView(
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        // Hardware Arpeggiator Control Bar
+        if (arpeggiator != null) {
+            val isArpEnabled by arpeggiator.isEnabled.collectAsState()
+            val isLatch by arpeggiator.isLatch.collectAsState()
+            val currentMode by arpeggiator.mode.collectAsState()
+            val currentRate by arpeggiator.rate.collectAsState()
+            val currentOctaves by arpeggiator.octaves.collectAsState()
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Surface(
+                color = Color(0xFF0F1523),
+                shape = RoundedCornerShape(6.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (isArpEnabled) Color(0xFF00E5FF).copy(alpha = 0.5f) else Color(0xFF1E293B)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // ARP On/Off Button
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isArpEnabled) Color(0xFF00E5FF) else Color(0xFF1A2333))
+                            .clickable { arpeggiator.setEnabled(!isArpEnabled) }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (isArpEnabled) "ARP ON" else "ARP OFF",
+                            color = if (isArpEnabled) Color.Black else Color(0xFF94A3B8),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    // LATCH Button
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isLatch) Color(0xFFFF9100) else Color(0xFF1A2333))
+                            .clickable { arpeggiator.setLatch(!isLatch) }
+                            .padding(horizontal = 7.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "LATCH",
+                            color = if (isLatch) Color.Black else Color(0xFF94A3B8),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    // Mode Selector (Cycles through UP, DOWN, UP_DOWN, RANDOM, AS_PLAYED)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF162032))
+                            .border(1.dp, Color(0xFF2B3D5B), RoundedCornerShape(4.dp))
+                            .clickable {
+                                val modes = com.example.sequencer.ArpMode.values()
+                                val nextIdx = (currentMode.ordinal + 1) % modes.size
+                                arpeggiator.setMode(modes[nextIdx])
+                            }
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "MODE: ${currentMode.label}",
+                            color = Color(0xFF00E676),
+                            fontSize = 9.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Rate Selector (Cycles 1/4, 1/8, 1/16, 1/32)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF162032))
+                            .border(1.dp, Color(0xFF2B3D5B), RoundedCornerShape(4.dp))
+                            .clickable {
+                                val rates = com.example.sequencer.ArpRate.values()
+                                val nextIdx = (currentRate.ordinal + 1) % rates.size
+                                arpeggiator.setRate(rates[nextIdx])
+                            }
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "RATE: ${currentRate.label}",
+                            color = Color(0xFFFF4081),
+                            fontSize = 9.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Octaves Selector (1 to 3 octaves)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF162032))
+                            .border(1.dp, Color(0xFF2B3D5B), RoundedCornerShape(4.dp))
+                            .clickable {
+                                val nextOct = if (currentOctaves >= 3) 1 else currentOctaves + 1
+                                arpeggiator.setOctaves(nextOct)
+                            }
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "OCT: ${currentOctaves}x",
+                            color = Color(0xFFFFD600),
+                            fontSize = 9.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
 
         // Performance Strip (Pitch Bend & Mod Wheel + Multi-touch Keyboard)
         val startMidi = (baseOctave + 1) * 12 // C3 = 48 when baseOctave = 3

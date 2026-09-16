@@ -473,9 +473,51 @@ fun RackSynthView(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Studio FX: Delay & Drive
+                // Studio FX: Stereo Chorus Ensemble
                 Text(
-                    text = "STUDIO EFFECTS CHAIN (DELAY & TUBE DRIVE)",
+                    text = "DIMENSION CHORUS / STEREO ENSEMBLE",
+                    color = Color(0xFF00E5FF),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    RotaryKnob(
+                        value = patch.chorusRate,
+                        onValueChange = { onPatchChange(patch.copy(chorusRate = it)) },
+                        valueRange = 0.2f..5.0f,
+                        label = "CHORUS RATE",
+                        displayValue = "${String.format("%.1f", patch.chorusRate)}Hz",
+                        indicatorColor = Color(0xFF00E5FF)
+                    )
+                    RotaryKnob(
+                        value = patch.chorusDepth,
+                        onValueChange = { onPatchChange(patch.copy(chorusDepth = it)) },
+                        valueRange = 0.0f..1.0f,
+                        label = "DEPTH",
+                        displayValue = "${(patch.chorusDepth * 100).toInt()}%",
+                        indicatorColor = Color(0xFF00E5FF)
+                    )
+                    RotaryKnob(
+                        value = patch.chorusMix,
+                        onValueChange = { onPatchChange(patch.copy(chorusMix = it)) },
+                        valueRange = 0.0f..0.8f,
+                        label = "CHORUS WET",
+                        displayValue = "${(patch.chorusMix * 100).toInt()}%",
+                        indicatorColor = Color(0xFF00E5FF)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Studio FX: Ping-Pong Delay & Drive
+                Text(
+                    text = "STUDIO EFFECTS CHAIN (PING-PONG DELAY & TAPE DRIVE)",
                     color = Color(0xFFFF9100),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,

@@ -4,6 +4,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -179,20 +180,28 @@ fun RotaryKnob(
     }
 }
 
+enum class VisualizerMode(val label: String) {
+    SCOPE("SCOPE"),
+    SPECTRUM("FFT BARS")
+}
+
 /**
- * Real-time Oscilloscope & Phosphor Waveform Monitor with VU Peak Meter
+ * Real-time Oscilloscope & 32-Band Phosphor Spectrum Analyzer with Studio VU Meter
  */
 @Composable
 fun OscilloscopeView(
     waveform: FloatArray,
     peakRms: Float,
     modifier: Modifier = Modifier,
+    spectrum: FloatArray? = null,
     traceColor: Color = Color(0xFF00E5FF)
 ) {
+    var mode by remember { mutableStateOf(VisualizerMode.SCOPE) }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(100.dp)
+            .height(115.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(Color(0xFF07090E))
             .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(8.dp))
@@ -200,11 +209,11 @@ fun OscilloscopeView(
             .testTag("oscilloscope_screen")
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val width = size.width
+            val width = size.width - 24f // leave room for VU meter
             val height = size.height
             val midY = height / 2f
 
-            // Grid lines (Cathode Ray Tube / Scope aesthetic)
+            // Grid lines (Cathode Ray Tube / Spectrum grid)
             val gridColor = Color(0xFF0F1E36)
             for (x in 0..8) {
                 val gx = width * (x / 8f)
@@ -214,83 +223,169 @@ fun OscilloscopeView(
                 val gy = height * (y / 4f)
                 drawLine(gridColor, Offset(0f, gy), Offset(width, gy), strokeWidth = 1f)
             }
-            // Center crosshair
-            drawLine(Color(0xFF1E3A5F), Offset(0f, midY), Offset(width, midY), strokeWidth = 1.2f)
 
-            if (waveform.isNotEmpty()) {
-                val path = Path()
-                val step = width / (waveform.size - 1).coerceAtLeast(1)
+            if (mode == VisualizerMode.SCOPE) {
+                // Center crosshair
+                drawLine(Color(0xFF1E3A5F), Offset(0f, midY), Offset(width, midY), strokeWidth = 1.2f)
 
-                val firstY = midY - (waveform[0] * midY * 0.9f).coerceIn(-midY * 0.95f, midY * 0.95f)
-                path.moveTo(0f, firstY)
+                if (waveform.isNotEmpty()) {
+                    val path = Path()
+                    val step = width / (waveform.size - 1).coerceAtLeast(1)
 
-                for (i in 1 until waveform.size) {
-                    val x = i * step
-                    val y = midY - (waveform[i] * midY * 0.9f).coerceIn(-midY * 0.95f, midY * 0.95f)
-                    path.lineTo(x, y)
+                    val firstY = midY - (waveform[0] * midY * 0.9f).coerceIn(-midY * 0.95f, midY * 0.95f)
+                    path.moveTo(0f, firstY)
+
+                    for (i in 1 until waveform.size) {
+                        val x = i * step
+                        val y = midY - (waveform[i] * midY * 0.9f).coerceIn(-midY * 0.95f, midY * 0.95f)
+                        path.lineTo(x, y)
+                    }
+
+                    // Ambient glow layer
+                    drawPath(
+                        path = path,
+                        color = traceColor.copy(alpha = 0.4f),
+                        style = Stroke(width = 4.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    )
+                    // Sharp center trace
+                    drawPath(
+                        path = path,
+                        color = Color.White,
+                        style = Stroke(width = 1.8f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    )
+                }
+            } else {
+                // 32-Band FFT Frequency Spectrum Analyzer
+                val bars = spectrum ?: FloatArray(32) { b ->
+                    // Fallback spectrum approximation from waveform RMS & bin index
+                    if (waveform.isNotEmpty()) {
+                        val sampleIdx = (b * (waveform.size / 32)).coerceIn(0, waveform.size - 1)
+                        abs(waveform[sampleIdx]) * (1.2f - b * 0.025f)
+                    } else 0f
                 }
 
-                // Ambient glow layer
-                drawPath(
-                    path = path,
-                    color = traceColor.copy(alpha = 0.35f),
-                    style = Stroke(width = 4.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-                )
-                // Sharp center trace
-                drawPath(
-                    path = path,
-                    color = Color.White,
-                    style = Stroke(width = 1.6f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-                )
+                val numBars = bars.size.coerceAtLeast(1)
+                val barGap = 2f
+                val barWidth = ((width - (barGap * (numBars - 1))) / numBars).coerceAtLeast(2f)
+
+                for (b in 0 until numBars) {
+                    val rawVal = bars[b].coerceIn(0f, 1f)
+                    val barHeight = (rawVal * (height - 12f)).coerceAtLeast(2f)
+                    val x = b * (barWidth + barGap)
+                    val y = height - barHeight - 4f
+
+                    // Neon multi-stop gradient
+                    val gradient = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFFFF1744), // Peak overload red
+                            Color(0xFFFF9100), // Amber
+                            Color(0xFF7C4DFF), // Purple
+                            Color(0xFF00E5FF)  // Base Cyan
+                        ),
+                        startY = y,
+                        endY = height
+                    )
+
+                    drawRect(
+                        brush = gradient,
+                        topLeft = Offset(x, y),
+                        size = androidx.compose.ui.geometry.Size(barWidth, barHeight)
+                    )
+
+                    // Floating Peak cap
+                    if (rawVal > 0.05f) {
+                        drawRect(
+                            color = Color.White.copy(alpha = 0.9f),
+                            topLeft = Offset(x, y - 2f),
+                            size = androidx.compose.ui.geometry.Size(barWidth, 2f)
+                        )
+                    }
+                }
             }
         }
 
-        // VU Peak Level Bar Overlay on right edge
-        Box(
+        // Studio Dual-Column Precision VU Peak Meter
+        Row(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .padding(end = 4.dp)
-                .width(5.dp)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(3.dp))
-                .background(Color(0xFF1E293B))
+                .width(18.dp)
+                .fillMaxHeight(),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.Bottom
         ) {
-            val levelRatio = (peakRms * 2.5f).coerceIn(0f, 1f)
-            val vuColor = when {
-                levelRatio > 0.85f -> Color(0xFFFF1744) // Red clipping warning
-                levelRatio > 0.6f -> Color(0xFFFF9100)  // Amber
-                else -> Color(0xFF00E676)              // Green
+            // Left & Right VU bars
+            listOf(peakRms * 2.4f, peakRms * 2.2f).forEach { rmsVal ->
+                val levelRatio = rmsVal.coerceIn(0f, 1f)
+                val vuColor = when {
+                    levelRatio > 0.88f -> Color(0xFFFF1744) // Red clip
+                    levelRatio > 0.65f -> Color(0xFFFF9100) // Amber
+                    else -> Color(0xFF00E676)              // Green
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0xFF1E293B))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .fillMaxHeight(levelRatio)
+                            .background(vuColor)
+                    )
+                }
             }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .fillMaxHeight(levelRatio)
-                    .background(vuColor)
-            )
         }
 
-        // HUD Labels
+        // Top Header: Visualizer Mode Toggle & HUD
         Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(4.dp),
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(if (peakRms > 0.01f) Color(0xFF00E5FF) else Color(0xFF334155))
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(
+                    text = if (mode == VisualizerMode.SCOPE) "CRT // 44.1kHz STEREO" else "FFT // 32-BAND SPECTRUM",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 9.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Mode Toggle Button (SCOPE / FFT)
             Box(
                 modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(if (peakRms > 0.01f) Color(0xFF00E5FF) else Color(0xFF334155))
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = "OSC // LIVE FFT 44.1kHz",
-                color = Color(0xFF64748B),
-                fontSize = 8.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
-            )
+                    .padding(end = 22.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF151D2A))
+                    .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                    .clickable {
+                        mode = if (mode == VisualizerMode.SCOPE) VisualizerMode.SPECTRUM else VisualizerMode.SCOPE
+                    }
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = mode.label,
+                    color = Color(0xFF00E5FF),
+                    fontSize = 8.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }

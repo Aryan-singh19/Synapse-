@@ -11,20 +11,37 @@
 
 ## ✨ Features & Capabilities
 
-### 1. Dual-Oscillator Sound Engine (`AudioTrack` Native Thread)
+### 1. True Stereo Dual-Oscillator Sound Engine (`AudioTrack` Native Thread)
+* **Stereo Interleaved DSP Pipeline**: High-priority real-time audio thread operating in true stereo (`AudioFormat.CHANNEL_OUT_STEREO`) at 44.1 kHz.
 * **Oscillator 1 & Oscillator 2**: 5 classic analog waveforms (Sawtooth, Square with Pulse-Width Modulation, Triangle, Sine, Pink Noise).
-* **Analog Drift & Detuning**: Fine pitch detune (±24 semitones & fine cents) for thick supersaws and stereo width.
+* **Analog Drift & Detuning**: Fine pitch detune (±24 semitones & fine cents) for thick supersaws and ultra-wide spatial imaging.
 * **Hard Sync & Sub-Oscillator**: Adds aggressive harmonics or deep sub-octave reinforcement.
 * **4-Pole Resonant Multi-Mode Filter**: Low-Pass 24dB/oct, High-Pass, Band-Pass, and Notch filtering with aggressive resonance feedback and self-oscillation behavior.
 * **Dual ADSR Envelopes**: Dedicated Amp and Filter envelope generators with exponential/linear curves.
-* **Multi-Waveform LFO**: Sine, Triangle, Square, and Random Sample & Hold, routable to pitch, cutoff, resonance, or pulse width.
+* **Multi-Waveform LFO**: Sine, Triangle, Square, and Random Sample & Hold, routable to pitch, cutoff, resonance, or effects.
 
-### 2. Virtual Eurorack Patch Bay
-* **Modular Signal Matrix**: Connect modulation sources (LFO, Amp Env, Filter Env, Velocity) to any destination parameter (Cutoff, Pitch, Resonance, PWM, Drive).
+### 2. Studio Effects Chain & Spatial Processing
+* **Dimension Stereo Chorus / Ensemble**: Wide quadrature 90-degree dual-voice chorus with adjustable Rate, Depth, and Wet/Dry Mix.
+* **Ping-Pong Stereo Delay**: Cross-channel stereo feedback bounce with 75% poly-meter offset for immersive depth and space.
+* **Hyperbolic Master Overdrive & Analog Tape Limiter**: Soft analog saturation with hyperbolic tangent clipping curve to prevent harsh digital clipping.
+
+### 3. Hardware-Grade Arpeggiator
+* **Modes**: UP, DOWN, UP & DOWN, RANDOM, and CHORD.
+* **Tempo Sync & Rates**: Synchronized to master BPM with division rates `1/4`, `1/8`, `1/16`, and `1/32`.
+* **Octave Range**: Traverses 1 to 3 octaves automatically.
+* **Latch Functionality**: Hold keys indefinitely to keep generative arpeggio loops running hands-free.
+
+### 4. Dual-Mode Visualizer: CRT Oscilloscope & 32-Band FFT Spectrum Analyzer
+* **Cathode-Ray Phosphor Oscilloscope**: Real-time waveform monitor with dual-layer CRT glow, crosshair grid, and trace rendering.
+* **32-Band FFT Frequency Spectrum Analyzer**: Real-time logarithmic frequency magnitude analysis with neon gradient bars and floating peak-hold caps.
+* **Studio VU Peak Meter**: Dual-column dB peak meters with color-coded headroom warnings (-18dB, -12dB, -6dB, 0dB, CLIP).
+
+### 5. Virtual Eurorack Patch Bay
+* **Modular Signal Matrix**: Connect modulation sources (LFO, Amp Env, Filter Env, Velocity, Random S&H) to any destination parameter (Cutoff, Pitch, Resonance, Drive, Chorus Mix, Delay Time).
 * **Color-Coded Animated Patch Cables**: Visual cables with dynamic sag curvature, signal flow pulses, and bi-directional attenuators.
 * **Quick Disconnect & Polarity Tuning**: Fine-tune depth and invert modulation on the fly.
 
-### 3. 16-Step Generative Sequencer
+### 6. 16-Step Generative Sequencer
 * **Dynamic Playback Modes**: Forward, Reverse, Ping-Pong, and Random step traversals.
 * **Algorithmic Rhythm Generation**:
   * **Euclidean Distribution**: Generate complex polyrhythms based on the Euclidean algorithm ($E(k, n)$).
@@ -33,19 +50,19 @@
 * **Musical Scale Quantization**: Minor Pentatonic, Major Pentatonic, Natural Minor, Dorian, Phrygian, Blues, and Japanese Insen scales.
 * **Micro-Timing & Groove**: Independent swing shuffle and dynamic gate length shaping.
 
-### 4. Performance Surface & Expressive Controls
+### 7. Performance Surface & Expressive Controls
 * **Kaoss-Style XY Touch Pad**: Dual-axis continuous filter cutoff and resonance modulation with tactile visual feedback.
 * **Spring-Loaded Pitch Bend Wheel**: Returns to center detune upon release.
 * **Continuous Modulation Wheel (MOD)**: Assignable real-time vibrato and filter sweep depth.
 * **Dual-Octave Multi-Touch Piano Keyboard**: Natural and accidental keys with polyphonic touch tracking and octave transpositions.
 * **Concert Reference Tuning**: Switch between standard 440 Hz, alternative 432 Hz, and brilliant 444 Hz concert pitch.
 
-### 5. High-Fidelity WAV Recording & Export
+### 8. High-Fidelity Stereo WAV Recording & Export
 * Direct, lossless in-engine recording to 16-bit 44.1 kHz stereo `.wav` files.
 * Built-in Android system share integration via secure `FileProvider` to send recordings to DAWs, Discord, Google Drive, or messaging apps.
 
-### 6. Curated Factory Sound Banks & Custom Presets
-* **Factory Presets**: *Cyberpunk Bass*, *Blade Runner Pad*, *Acid Lead 303*, *Ambient Drone*, *Analog Moog Brass*, *Sub Bass Heavy*.
+### 9. Curated Factory Sound Banks & Custom Presets
+* **Factory Presets**: *Cyberpunk Bass*, *Blade Runner Pad*, *Acid Lead 303*, *Ambient Drone*, *Analog Moog Brass*, *Sub Bass Heavy*, *Stranger Synth 80s*, *Vangelis CS-80 Pad*.
 * **Custom Patch Saving**: Save, name, and recall custom modular configurations.
 
 ---
