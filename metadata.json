@@ -1,0 +1,6 @@
+{
+  "name": "Synapse",
+  "description": "Modular Synthesizer & Generative Audio Lab with real-time sound engine, step sequencer, and patch routing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
