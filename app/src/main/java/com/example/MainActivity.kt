@@ -1,5 +1,6 @@
 package com.example
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,11 +23,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.presets.PresetBank
 import com.example.ui.StudioTab
@@ -57,6 +60,16 @@ fun SynapseApp(viewModel: SynapseViewModel) {
     val peakRms by viewModel.peakRms.collectAsStateWithLifecycle()
     val customPresets by viewModel.customPresets.collectAsStateWithLifecycle()
 
+    // Live WAV Recording State
+    val isRecording by viewModel.isRecording.collectAsStateWithLifecycle()
+    val recordingDurationSec by viewModel.recordingDurationSec.collectAsStateWithLifecycle()
+    val lastRecordedFile by viewModel.lastRecordedFile.collectAsStateWithLifecycle()
+
+    // Performance controllers
+    val pitchBend by viewModel.pitchBend.collectAsStateWithLifecycle()
+    val modWheel by viewModel.modWheel.collectAsStateWithLifecycle()
+    val masterTuning by viewModel.masterTuning.collectAsStateWithLifecycle()
+
     // Sequencer states
     val isPlaying by viewModel.sequencer.isPlaying.collectAsStateWithLifecycle()
     val currentStep by viewModel.sequencer.currentStep.collectAsStateWithLifecycle()
@@ -64,7 +77,10 @@ fun SynapseApp(viewModel: SynapseViewModel) {
     val swing by viewModel.sequencer.swing.collectAsStateWithLifecycle()
     val steps by viewModel.sequencer.steps.collectAsStateWithLifecycle()
     val selectedScale by viewModel.sequencer.selectedScale.collectAsStateWithLifecycle()
+    val direction by viewModel.sequencer.direction.collectAsStateWithLifecycle()
+    val gateLength by viewModel.sequencer.gateLength.collectAsStateWithLifecycle()
 
+    val context = LocalContext.current
     var showPresetDialog by remember { mutableStateOf(false) }
     var newPresetName by remember { mutableStateOf("") }
 
@@ -120,46 +136,90 @@ fun SynapseApp(viewModel: SynapseViewModel) {
                         }
                     }
 
-                    // Patch Selector Pill
-                    OutlinedButton(
-                        onClick = { showPresetDialog = true },
-                        shape = RoundedCornerShape(6.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f)),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier.testTag("preset_selector_btn")
+                    // Action controls row: Presets + Record + Panic
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            Icons.Default.LibraryMusic,
-                            contentDescription = "Presets",
-                            tint = Color(0xFF00E5FF),
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = currentPatch.name,
-                            color = Color(0xFF00E5FF),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
+                        // Patch Selector Pill
+                        OutlinedButton(
+                            onClick = { showPresetDialog = true },
+                            shape = RoundedCornerShape(6.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f)),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.testTag("preset_selector_btn")
+                        ) {
+                            Icon(
+                                Icons.Default.LibraryMusic,
+                                contentDescription = "Presets",
+                                tint = Color(0xFF00E5FF),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = currentPatch.name,
+                                color = Color(0xFF00E5FF),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
 
-                    // Panic Button (Kill Stuck Notes / Audio Reset)
-                    IconButton(
-                        onClick = { viewModel.panic() },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF261824))
-                            .border(1.dp, Color(0xFFFF1744).copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-                            .testTag("btn_panic")
-                    ) {
-                        Icon(
-                            Icons.Default.PowerSettingsNew,
-                            contentDescription = "Panic / All Notes Off",
-                            tint = Color(0xFFFF5252),
-                            modifier = Modifier.size(18.dp)
-                        )
+                        // Live WAV Recorder Button
+                        Button(
+                            onClick = {
+                                if (isRecording) {
+                                    viewModel.stopRecording(context)
+                                } else {
+                                    viewModel.startRecording(context)
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isRecording) Color(0xFFFF1744) else Color(0xFF1E293B)
+                            ),
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isRecording) Color(0xFFFF5252) else Color(0xFFFF1744).copy(alpha = 0.5f)
+                            ),
+                            modifier = Modifier.testTag("btn_record")
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isRecording) Color.White else Color(0xFFFF1744))
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isRecording) {
+                                    String.format("%02d:%02d", (recordingDurationSec / 60).toInt(), (recordingDurationSec % 60).toInt())
+                                } else "REC",
+                                color = if (isRecording) Color.White else Color(0xFFFF5252),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        // Panic Button (Kill Stuck Notes / Audio Reset)
+                        IconButton(
+                            onClick = { viewModel.panic() },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFF261824))
+                                .border(1.dp, Color(0xFFFF1744).copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                .testTag("btn_panic")
+                        ) {
+                            Icon(
+                                Icons.Default.PowerSettingsNew,
+                                contentDescription = "Panic / All Notes Off",
+                                tint = Color(0xFFFF5252),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -261,10 +321,18 @@ fun SynapseApp(viewModel: SynapseViewModel) {
                             bpm = bpm,
                             swing = swing,
                             selectedScale = selectedScale,
+                            direction = direction,
+                            gateLength = gateLength,
                             onTogglePlay = { viewModel.sequencer.togglePlayback() },
                             onSetBpm = { viewModel.sequencer.setBpm(it) },
                             onSetSwing = { viewModel.sequencer.setSwing(it) },
                             onSetScale = { viewModel.sequencer.setScale(it) },
+                            onSetDirection = { viewModel.sequencer.setDirection(it) },
+                            onSetGateLength = { viewModel.sequencer.setGateLength(it) },
+                            onTranspose = { viewModel.sequencer.transpose(it) },
+                            onClearAll = { viewModel.sequencer.clearAll() },
+                            onInvert = { viewModel.sequencer.invertSteps() },
+                            onShift = { viewModel.sequencer.shiftSteps(it) },
                             onToggleStep = { viewModel.sequencer.toggleStep(it) },
                             onStepNoteChange = { idx, note -> viewModel.sequencer.setStepNote(idx, note) },
                             onToggleAccent = { viewModel.sequencer.toggleAccent(it) },
@@ -290,7 +358,13 @@ fun SynapseApp(viewModel: SynapseViewModel) {
                             onNoteOff = { note -> viewModel.noteOff(note) },
                             filterCutoff = currentPatch.filterCutoff,
                             filterResonance = currentPatch.filterResonance,
-                            onXyPadChange = { cut, res -> viewModel.updateXyPad(cut, res) }
+                            onXyPadChange = { cut, res -> viewModel.updateXyPad(cut, res) },
+                            pitchBend = pitchBend,
+                            onPitchBendChange = { viewModel.setPitchBend(it) },
+                            modWheel = modWheel,
+                            onModWheelChange = { viewModel.setModWheel(it) },
+                            masterTuning = masterTuning,
+                            onMasterTuningChange = { viewModel.setMasterTuning(it) }
                         )
                     }
                 }
@@ -449,6 +523,94 @@ fun SynapseApp(viewModel: SynapseViewModel) {
                 }
             },
             containerColor = Color(0xFF101726)
+        )
+    }
+
+    // AUDIO RECORDING SAVED / EXPORT MODAL
+    lastRecordedFile?.let { recordedWav ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissLastRecording() },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF00E676))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "WAV RECORDING SAVED",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "File: ${recordedWav.name}",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = Color(0xFF00E5FF),
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Format: 16-bit PCM WAV / 44.1 kHz Stereo",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                    Text(
+                        "Size: ${(recordedWav.length() / 1024).coerceAtLeast(1)} KB",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "You can share or export this studio recording to Discord, Drive, WhatsApp, DAW, or file manager.",
+                        fontSize = 11.sp,
+                        color = Color(0xFFCBD5E1)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        try {
+                            val uri = FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                recordedWav
+                            )
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "audio/wav"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Export Synapse WAV Jam"))
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = null, tint = Color.Black, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        "EXPORT WAV",
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissLastRecording() }) {
+                    Text("DISMISS", color = Color(0xFF94A3B8), fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                }
+            },
+            containerColor = Color(0xFF131A29)
         )
     }
 }

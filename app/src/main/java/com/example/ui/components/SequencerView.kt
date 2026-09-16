@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.audio.MusicalScale
+import com.example.sequencer.PlaybackDirection
 import com.example.sequencer.SequencerStep
 import com.example.sequencer.StepSequencer
 
@@ -34,10 +35,18 @@ fun SequencerView(
     bpm: Int,
     swing: Float,
     selectedScale: MusicalScale,
+    direction: PlaybackDirection = PlaybackDirection.FORWARD,
+    gateLength: Float = 0.8f,
     onTogglePlay: () -> Unit,
     onSetBpm: (Int) -> Unit,
     onSetSwing: (Float) -> Unit,
     onSetScale: (MusicalScale) -> Unit,
+    onSetDirection: (PlaybackDirection) -> Unit = {},
+    onSetGateLength: (Float) -> Unit = {},
+    onTranspose: (Int) -> Unit = {},
+    onClearAll: () -> Unit = {},
+    onInvert: () -> Unit = {},
+    onShift: (Int) -> Unit = {},
     onToggleStep: (Int) -> Unit,
     onStepNoteChange: (Int, Int) -> Unit,
     onToggleAccent: (Int) -> Unit,
@@ -205,6 +214,76 @@ fun SequencerView(
                 Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFFF4081))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Gen Riff", fontSize = 10.sp, color = Color(0xFFFF4081), fontFamily = FontFamily.Monospace)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Advanced Pattern & Direction Strip
+        Surface(
+            color = Color(0xFF0F1626),
+            shape = RoundedCornerShape(6.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Direction Modes
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("DIR:", fontSize = 9.sp, color = Color(0xFF64748B), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                    PlaybackDirection.values().forEach { dir ->
+                        val isDirActive = direction == dir
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (isDirActive) Color(0xFF00E676).copy(alpha = 0.25f) else Color(0xFF192233))
+                                .border(1.dp, if (isDirActive) Color(0xFF00E676) else Color(0xFF26334D), RoundedCornerShape(4.dp))
+                                .clickable { onSetDirection(dir) }
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                        ) {
+                            Text(dir.label, fontSize = 9.sp, color = if (isDirActive) Color(0xFF00E676) else Color(0xFF94A3B8), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                // Transpose & Clear tools
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF192233))
+                            .border(1.dp, Color(0xFF26334D), RoundedCornerShape(4.dp))
+                            .clickable { onTranspose(-12) }
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
+                        Text("-OCT", fontSize = 9.sp, color = Color(0xFF00E5FF), fontFamily = FontFamily.Monospace)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF192233))
+                            .border(1.dp, Color(0xFF26334D), RoundedCornerShape(4.dp))
+                            .clickable { onTranspose(12) }
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
+                        Text("+OCT", fontSize = 9.sp, color = Color(0xFF00E5FF), fontFamily = FontFamily.Monospace)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF221520))
+                            .border(1.dp, Color(0xFF4A1A2C), RoundedCornerShape(4.dp))
+                            .clickable { onClearAll() }
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
+                        Text("CLEAR", fontSize = 9.sp, color = Color(0xFFFF5252), fontFamily = FontFamily.Monospace)
+                    }
+                }
             }
         }
 

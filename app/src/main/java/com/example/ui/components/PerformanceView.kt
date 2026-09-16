@@ -3,6 +3,7 @@ package com.example.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -35,6 +36,12 @@ fun PerformanceView(
     filterCutoff: Float,
     filterResonance: Float,
     onXyPadChange: (cutoff: Float, resonance: Float) -> Unit,
+    pitchBend: Float = 0f,
+    onPitchBendChange: (Float) -> Unit = {},
+    modWheel: Float = 0f,
+    onModWheelChange: (Float) -> Unit = {},
+    masterTuning: Float = 440f,
+    onMasterTuningChange: (Float) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var xyTouchPos by remember { mutableStateOf<Offset?>(null) }
@@ -54,7 +61,7 @@ fun PerformanceView(
         ) {
             ModularSectionHeader(
                 title = "LIVE PERFORMANCE & XY PAD",
-                badge = "OCTAVE $baseOctave",
+                badge = "OCTAVE $baseOctave // ${masterTuning.toInt()}Hz",
                 accentColor = Color(0xFFFF9100)
             )
         }
@@ -201,7 +208,7 @@ fun PerformanceView(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Octave & Pitch Bar
+        // Octave & Pitch Tuning Bar
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -237,27 +244,173 @@ fun PerformanceView(
                 }
             }
 
-            Text(
-                text = "POLYPHONIC TOUCH KEYS",
-                color = Color(0xFF64748B),
-                fontSize = 9.sp,
-                fontFamily = FontFamily.Monospace
-            )
+            // Concert Tuning Selector
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                listOf(432f, 440f, 444f).forEach { hz ->
+                    val isSelected = kotlin.math.abs(masterTuning - hz) < 0.5f
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isSelected) Color(0xFFFF9100).copy(alpha = 0.25f) else Color(0xFF131A29))
+                            .border(1.dp, if (isSelected) Color(0xFFFF9100) else Color(0xFF1E293B), RoundedCornerShape(4.dp))
+                            .clickable { onMasterTuningChange(hz) }
+                            .padding(horizontal = 6.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            "${hz.toInt()}Hz",
+                            fontSize = 9.sp,
+                            color = if (isSelected) Color(0xFFFF9100) else Color(0xFF94A3B8),
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Multi-touch Piano Keyboard (14 natural keys: 2 full octaves)
+        // Performance Strip (Pitch Bend & Mod Wheel + Multi-touch Keyboard)
         val startMidi = (baseOctave + 1) * 12 // C3 = 48 when baseOctave = 3
-        PianoKeyboard(
-            startMidiNote = startMidi,
-            numKeys = 14,
-            onNoteOn = onNoteOn,
-            onNoteOff = onNoteOff,
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(130.dp)
-        )
+                .height(134.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Pitch Bend & Mod Wheel Wheels
+            PerformanceWheels(
+                pitchBend = pitchBend,
+                onPitchBendChange = onPitchBendChange,
+                modWheel = modWheel,
+                onModWheelChange = onModWheelChange,
+                modifier = Modifier
+                    .width(78.dp)
+                    .fillMaxHeight()
+            )
+
+            // Multi-touch Piano Keyboard (14 natural keys: 2 full octaves)
+            PianoKeyboard(
+                startMidiNote = startMidi,
+                numKeys = 14,
+                onNoteOn = onNoteOn,
+                onNoteOff = onNoteOff,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            )
+        }
+    }
+}
+
+/**
+ * Pitch Bend & Modulation Touch Wheels
+ */
+@Composable
+private fun PerformanceWheels(
+    pitchBend: Float,
+    onPitchBendChange: (Float) -> Unit,
+    modWheel: Float,
+    onModWheelChange: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF0F1420))
+            .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(8.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        // Pitch Bend (Spring-loaded center)
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("BEND", fontSize = 8.sp, color = Color(0xFF00E5FF), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF162032))
+                    .border(1.dp, Color(0xFF23324C), RoundedCornerShape(4.dp))
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragEnd = { onPitchBendChange(0f) },
+                            onDragCancel = { onPitchBendChange(0f) },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                val normY = (1f - (change.position.y / size.height)).coerceIn(0f, 1f)
+                                // Maps 0..1 to -2..+2 semitones
+                                val bendSemitones = (normY - 0.5f) * 4.0f
+                                onPitchBendChange(bendSemitones)
+                            }
+                        )
+                    }
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val w = size.width
+                    val h = size.height
+                    val centerY = h / 2f
+                    // Center reference line
+                    drawLine(Color(0xFF00E5FF).copy(alpha = 0.5f), Offset(0f, centerY), Offset(w, centerY), strokeWidth = 2f)
+
+                    // Current bend position
+                    val normBend = (pitchBend / 4.0f) + 0.5f // 0 to 1
+                    val indicatorY = h * (1f - normBend)
+
+                    drawRect(
+                        color = Color(0xFF00E5FF).copy(alpha = 0.4f),
+                        topLeft = Offset(0f, kotlin.math.min(centerY, indicatorY)),
+                        size = androidx.compose.ui.geometry.Size(w, kotlin.math.abs(indicatorY - centerY))
+                    )
+                    drawLine(Color.White, Offset(0f, indicatorY), Offset(w, indicatorY), strokeWidth = 3f)
+                }
+            }
+        }
+
+        // Mod Wheel (Continuous value)
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("MOD", fontSize = 8.sp, color = Color(0xFFFF9100), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF162032))
+                    .border(1.dp, Color(0xFF23324C), RoundedCornerShape(4.dp))
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDrag = { change, _ ->
+                                change.consume()
+                                val normY = (1f - (change.position.y / size.height)).coerceIn(0f, 1f)
+                                onModWheelChange(normY)
+                            }
+                        )
+                    }
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val w = size.width
+                    val h = size.height
+                    val indicatorY = h * (1f - modWheel)
+
+                    drawRect(
+                        color = Color(0xFFFF9100).copy(alpha = 0.35f),
+                        topLeft = Offset(0f, indicatorY),
+                        size = androidx.compose.ui.geometry.Size(w, h - indicatorY)
+                    )
+                    drawLine(Color(0xFFFF9100), Offset(0f, indicatorY), Offset(w, indicatorY), strokeWidth = 3f)
+                }
+            }
+        }
     }
 }
 

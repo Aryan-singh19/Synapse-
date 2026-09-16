@@ -8,6 +8,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.random.Random
 
+enum class PlaybackDirection(val label: String) {
+    FORWARD(">>>"),
+    REVERSE("<<<"),
+    PING_PONG("<->"),
+    RANDOM("RND")
+}
+
 data class SequencerStep(
     val index: Int,
     val enabled: Boolean = true,
@@ -43,6 +50,12 @@ class StepSequencer(private val synthEngine: SynthEngine) {
 
     private val _swing = MutableStateFlow(0f) // 0.0 to 0.5
     val swing: StateFlow<Float> = _swing.asStateFlow()
+
+    private val _gateLength = MutableStateFlow(0.80f) // 0.25 to 0.95
+    val gateLength: StateFlow<Float> = _gateLength.asStateFlow()
+
+    private val _direction = MutableStateFlow(PlaybackDirection.FORWARD)
+    val direction: StateFlow<PlaybackDirection> = _direction.asStateFlow()
 
     private val _rootNote = MutableStateFlow(48) // C3
     val rootNote: StateFlow<Int> = _rootNote.asStateFlow()
@@ -127,6 +140,14 @@ class StepSequencer(private val synthEngine: SynthEngine) {
         }
     }
 
+    fun setDirection(dir: PlaybackDirection) {
+        _direction.value = dir
+    }
+
+    fun setGateLength(length: Float) {
+        _gateLength.value = length.coerceIn(0.20f, 0.95f)
+    }
+
     fun play() {
         if (_isPlaying.value) return
         _isPlaying.value = true
@@ -134,6 +155,8 @@ class StepSequencer(private val synthEngine: SynthEngine) {
 
         sequencerJob = coroutineScope.launch {
             var stepIndex = 0
+            var pingPongForward = true
+
             while (isActive && _isPlaying.value) {
                 _currentStep.value = stepIndex
 
@@ -160,8 +183,9 @@ class StepSequencer(private val synthEngine: SynthEngine) {
                     previousMidiNote = null
                 }
 
-                // Gate length: hold note for 80% of step duration
-                val gateDuration = (stepDurationMs * 0.8).toLong().coerceAtLeast(10L)
+                // Dynamic Gate length
+                val gateRatio = _gateLength.value
+                val gateDuration = (stepDurationMs * gateRatio).toLong().coerceAtLeast(10L)
                 delay(gateDuration + swingOffset)
 
                 if (step.enabled) {
@@ -172,9 +196,64 @@ class StepSequencer(private val synthEngine: SynthEngine) {
                 val remainingDelay = (stepDurationMs - gateDuration).coerceAtLeast(5L)
                 delay(remainingDelay)
 
-                stepIndex = (stepIndex + 1) % NUM_STEPS
+                // Advance step index based on direction
+                when (_direction.value) {
+                    PlaybackDirection.FORWARD -> {
+                        stepIndex = (stepIndex + 1) % NUM_STEPS
+                    }
+                    PlaybackDirection.REVERSE -> {
+                        stepIndex = if (stepIndex - 1 < 0) NUM_STEPS - 1 else stepIndex - 1
+                    }
+                    PlaybackDirection.PING_PONG -> {
+                        if (pingPongForward) {
+                            if (stepIndex >= NUM_STEPS - 1) {
+                                pingPongForward = false
+                                stepIndex = NUM_STEPS - 2
+                            } else {
+                                stepIndex++
+                            }
+                        } else {
+                            if (stepIndex <= 0) {
+                                pingPongForward = true
+                                stepIndex = 1
+                            } else {
+                                stepIndex--
+                            }
+                        }
+                    }
+                    PlaybackDirection.RANDOM -> {
+                        stepIndex = Random.nextInt(NUM_STEPS)
+                    }
+                }
             }
         }
+    }
+
+    fun transpose(semitones: Int) {
+        val list = _steps.value.map { step ->
+            val shifted = (step.midiNote + semitones).coerceIn(24, 96)
+            step.copy(midiNote = shifted)
+        }
+        _steps.value = list
+    }
+
+    fun clearAll() {
+        val list = _steps.value.map { it.copy(enabled = false) }
+        _steps.value = list
+    }
+
+    fun invertSteps() {
+        val list = _steps.value.map { it.copy(enabled = !it.enabled) }
+        _steps.value = list
+    }
+
+    fun shiftSteps(offset: Int) {
+        val current = _steps.value
+        val list = List(NUM_STEPS) { i ->
+            val srcIdx = (i - offset + NUM_STEPS) % NUM_STEPS
+            current[srcIdx].copy(index = i)
+        }
+        _steps.value = list
     }
 
     fun stop() {

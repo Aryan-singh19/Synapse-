@@ -39,12 +39,107 @@ class SynapseViewModel : ViewModel() {
     private val _customPresets = MutableStateFlow<List<SynthPatch>>(emptyList())
     val customPresets: StateFlow<List<SynthPatch>> = _customPresets.asStateFlow()
 
+    // WAV Recording State
+    private val _isRecording = MutableStateFlow(false)
+    val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
+
+    private val _recordingDurationSec = MutableStateFlow(0f)
+    val recordingDurationSec: StateFlow<Float> = _recordingDurationSec.asStateFlow()
+
+    private val _lastRecordedFile = MutableStateFlow<java.io.File?>(null)
+    val lastRecordedFile: StateFlow<java.io.File?> = _lastRecordedFile.asStateFlow()
+
+    private val _recordedFiles = MutableStateFlow<List<java.io.File>>(emptyList())
+    val recordedFiles: StateFlow<List<java.io.File>> = _recordedFiles.asStateFlow()
+
+    // Performance controllers
+    private val _pitchBend = MutableStateFlow(0f)
+    val pitchBend: StateFlow<Float> = _pitchBend.asStateFlow()
+
+    private val _modWheel = MutableStateFlow(0f)
+    val modWheel: StateFlow<Float> = _modWheel.asStateFlow()
+
+    private val _masterTuning = MutableStateFlow(440f)
+    val masterTuning: StateFlow<Float> = _masterTuning.asStateFlow()
+
     private var visualizerJob: Job? = null
+    private var recordingTimerJob: Job? = null
 
     init {
         synthEngine.patch = _currentPatch.value
         synthEngine.start()
         startVisualizerLoop()
+    }
+
+    fun startRecording(context: android.content.Context) {
+        if (_isRecording.value) return
+        val timeStamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+        val dir = java.io.File(context.filesDir, "recordings")
+        dir.mkdirs()
+        val file = java.io.File(dir, "Synapse_Jam_$timeStamp.wav")
+
+        if (synthEngine.recorder.start(file)) {
+            _isRecording.value = true
+            _recordingDurationSec.value = 0f
+            recordingTimerJob = viewModelScope.launch(Dispatchers.Default) {
+                while (isActive && _isRecording.value) {
+                    _recordingDurationSec.value = synthEngine.recorder.recordedDurationSeconds
+                    delay(200L)
+                }
+            }
+        }
+    }
+
+    fun stopRecording(context: android.content.Context? = null): java.io.File? {
+        if (!_isRecording.value) return null
+        recordingTimerJob?.cancel()
+        recordingTimerJob = null
+        val recordedFile = synthEngine.recorder.stop()
+        _isRecording.value = false
+        _recordingDurationSec.value = 0f
+        if (recordedFile != null && recordedFile.exists()) {
+            _lastRecordedFile.value = recordedFile
+            context?.let { refreshRecordedFiles(it) }
+        }
+        return recordedFile
+    }
+
+    fun refreshRecordedFiles(context: android.content.Context) {
+        val dir = java.io.File(context.filesDir, "recordings")
+        if (dir.exists()) {
+            val list = dir.listFiles { file -> file.extension.lowercase() == "wav" }
+                ?.sortedByDescending { it.lastModified() }
+                ?: emptyList()
+            _recordedFiles.value = list
+        }
+    }
+
+    fun dismissLastRecording() {
+        _lastRecordedFile.value = null
+    }
+
+    fun setPitchBend(semitones: Float) {
+        val clamped = semitones.coerceIn(-2.0f, 2.0f)
+        _pitchBend.value = clamped
+        synthEngine.pitchBendSemitones = clamped
+    }
+
+    fun setModWheel(amount: Float) {
+        val clamped = amount.coerceIn(0f, 1.0f)
+        _modWheel.value = clamped
+        synthEngine.modWheelAmount = clamped
+    }
+
+    fun setMasterTuning(hz: Float) {
+        val clamped = hz.coerceIn(430f, 450f)
+        _masterTuning.value = clamped
+        synthEngine.masterTuningHz = clamped
+    }
+
+    fun setMasterVolume(vol: Float) {
+        val clamped = vol.coerceIn(0f, 1.2f)
+        val updated = _currentPatch.value.copy(masterVolume = clamped)
+        updatePatch(updated)
     }
 
     private fun startVisualizerLoop() {
@@ -140,6 +235,7 @@ class SynapseViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         visualizerJob?.cancel()
+        recordingTimerJob?.cancel()
         sequencer.stop()
         synthEngine.stop()
     }

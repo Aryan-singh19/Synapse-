@@ -1,41 +1,85 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Glowing Audio Pulse Wave (Safe zone centered) -->
+
+    <!-- Hex Rack Bolts (Eurorack faceplate corners) -->
+    <path
+        android:fillColor="#334155"
+        android:pathData="M24,24 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0" />
+    <path
+        android:fillColor="#334155"
+        android:pathData="M84,24 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0" />
+    <path
+        android:fillColor="#334155"
+        android:pathData="M24,84 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0" />
+    <path
+        android:fillColor="#334155"
+        android:pathData="M84,84 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0" />
+
+    <!-- Center Rotary Dial Bezel / Oscilloscope Ring -->
+    <path
+        android:fillColor="#0D1322"
+        android:strokeColor="#1E293B"
+        android:strokeWidth="3.0"
+        android:pathData="M54,54 m-24,0 a24,24 0 1,0 48,0 a24,24 0 1,0 -48,0" />
+
+    <!-- Outer LED Indicator Glow Arc -->
     <path
         android:fillColor="#00000000"
         android:strokeColor="#00E5FF"
-        android:strokeWidth="3.5"
+        android:strokeWidth="2.0"
         android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M28,54 L36,54 L42,36 L48,72 L54,42 L60,66 L66,54 L80,54" />
+        android:pathData="M37,68 C33,62 33,46 39,39 C46,32 62,32 69,39 C75,46 75,62 71,68" />
 
-    <!-- Secondary Harmonic / Resonant Wave -->
+    <!-- Glowing Active Oscilloscope Waveform inside Dial -->
+    <!-- Ambient Wave Glow -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#FF4081"
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="5.0"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeAlpha="0.3"
+        android:pathData="M34,54 L41,54 L46,40 L51,68 L56,44 L61,62 L66,54 L74,54" />
+
+    <!-- Core Waveform Beam -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="2.0"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:strokeAlpha="0.75"
-        android:pathData="M28,54 C34,48 40,60 48,54 C56,48 64,60 72,54 C76,51 78,54 80,54" />
+        android:pathData="M34,54 L41,54 L46,40 L51,68 L56,44 L61,62 L66,54 L74,54" />
 
-    <!-- Modular Jack Port Accent (top right) -->
+    <!-- Patch Socket 1 (Top Right) -->
     <path
         android:fillColor="#1E293B"
         android:strokeColor="#00E5FF"
-        android:strokeWidth="2.0"
-        android:pathData="M70,33 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+        android:strokeWidth="1.8"
+        android:pathData="M78,32 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
     <path
-        android:fillColor="#0D1117"
-        android:pathData="M70,33 m-2.2,0 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+        android:fillColor="#090D15"
+        android:pathData="M78,32 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
 
-    <!-- Patch Cord Node Accent (bottom left) -->
+    <!-- Patch Socket 2 (Bottom Left) -->
     <path
-        android:fillColor="#FF9100"
-        android:strokeColor="#FFE082"
-        android:strokeWidth="1.5"
-        android:pathData="M38,75 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+        android:fillColor="#1E293B"
+        android:strokeColor="#FF9100"
+        android:strokeWidth="1.8"
+        android:pathData="M30,76 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+    <path
+        android:fillColor="#090D15"
+        android:pathData="M30,76 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+
+    <!-- Hanging Patch Cable Sag Arc connecting Jack 1 to Jack 2 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF9100"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeAlpha="0.85"
+        android:pathData="M78,34 C72,70 42,90 30,76" />
 </vector>

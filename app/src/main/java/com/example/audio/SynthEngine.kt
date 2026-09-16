@@ -19,6 +19,19 @@ class SynthEngine {
     private var audioThread: Thread? = null
     private val isRunning = AtomicBoolean(false)
 
+    // WAV Audio Recorder for live studio capturing
+    val recorder = WavAudioRecorder()
+
+    // Real-time Performance Controls
+    @Volatile
+    var pitchBendSemitones: Float = 0f // -2.0 to +2.0
+
+    @Volatile
+    var modWheelAmount: Float = 0f // 0.0 to 1.0
+
+    @Volatile
+    var masterTuningHz: Float = 440f // 430Hz - 450Hz concert pitch calibration
+
     // Current synthesis patch parameters
     @Volatile
     var patch: SynthPatch = SynthPatch()
@@ -112,6 +125,11 @@ class SynthEngine {
                     }
                     currentPeakRms = sqrt(sumSquares / BUFFER_CHUNK_SIZE)
 
+                    // Write to live WAV recorder if active
+                    if (recorder.isRecording) {
+                        recorder.writeSamples(shortBuffer, BUFFER_CHUNK_SIZE)
+                    }
+
                     // Write to AudioTrack
                     audioTrack?.write(shortBuffer, 0, BUFFER_CHUNK_SIZE)
                 }
@@ -125,6 +143,9 @@ class SynthEngine {
     }
 
     fun stop() {
+        if (recorder.isRecording) {
+            recorder.stop()
+        }
         isRunning.set(false)
         try {
             audioThread?.join(500)
@@ -299,7 +320,7 @@ class SynthEngine {
     }
 
     private fun midiToFreq(note: Int): Float {
-        return (440.0 * 2.0.pow((note - 69.0) / 12.0)).toFloat()
+        return (masterTuningHz * 2.0.pow((note - 69.0) / 12.0)).toFloat()
     }
 
     private enum class EnvStage { IDLE, ATTACK, DECAY, SUSTAIN, RELEASE }
@@ -377,12 +398,13 @@ class SynthEngine {
                 currentFreq = targetFreq
             }
 
-            // Frequency for Osc 1 (Octave + Semi + Fine + LFO pitch + Mod)
-            val osc1MidiShift = (p.osc1Octave * 12) + p.osc1Semi + p.osc1Fine + (lfoOut * 2.0f) + pitchModOsc1
+            // Frequency for Osc 1 (Octave + Semi + Fine + LFO pitch + Mod + PitchBend)
+            val pitchBend = this@SynthEngine.pitchBendSemitones
+            val osc1MidiShift = (p.osc1Octave * 12) + p.osc1Semi + p.osc1Fine + (lfoOut * 2.0f) + pitchModOsc1 + pitchBend
             val freq1 = currentFreq * 2.0.pow(osc1MidiShift / 12.0).toFloat()
 
             // Frequency for Osc 2
-            val osc2MidiShift = (p.osc2Octave * 12) + p.osc2Semi + p.osc2Fine + pitchModOsc2
+            val osc2MidiShift = (p.osc2Octave * 12) + p.osc2Semi + p.osc2Fine + pitchModOsc2 + pitchBend
             val freq2 = currentFreq * 2.0.pow(osc2MidiShift / 12.0).toFloat()
 
             // Phase increments
@@ -416,7 +438,8 @@ class SynthEngine {
             }
 
             // Resonant Filter computation (SVF)
-            val baseCutoff = p.filterCutoff + (filtEnvLevel * p.filterEnvAmount * 8000f) + cutoffMod + (lfoOut * 1200f)
+            val modWheelCutoff = this@SynthEngine.modWheelAmount * 6000f
+            val baseCutoff = p.filterCutoff + (filtEnvLevel * p.filterEnvAmount * 8000f) + cutoffMod + (lfoOut * 1200f) + modWheelCutoff
             val clampedCutoff = baseCutoff.coerceIn(20f, 18000f)
             val effectiveRes = (p.filterResonance + resMod).coerceIn(0.2f, 9.5f)
 
